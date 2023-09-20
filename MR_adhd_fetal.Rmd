@@ -1,0 +1,123 @@
+---
+title: "MR_adhd_fetal"
+author: "Catriona M"
+date: "4/26/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Loading required libraries
+```{r}
+library(remotes)
+#install_github("MRCIEU/TwoSampleMR")
+#library(TwoSampleMR)
+library(data.table)
+library(ggplot2)
+library(tidyverse)
+```
+
+# Exposure data
+# From here until after clumping has already been done on this data for autism so will not be run again
+```{r}
+#fetal_exposure = read_exposure_data(filename="significant_eqtls_fetal_brain_cortex.txt", sep = "\t",snp_col = "snp",beta_col = "beta",se_col = "beta_se",effect_allele_col = "alt",other_allele_col = "ref",phenotype_col = "gene",eaf="maf",pval_col = "eqtl_pval")
+#removal_snps = fread("query_snp_ld.txt", select="rsidt") 
+
+```
+
+
+# Manipulate exposure data
+```{r}
+#fetal_exposure = subset(fetal_exposure, pval.exposure < 0.00001)
+
+```
+
+# Use Bowden method for filtering of F statistic > 10 to reduce false positives
+```{r}
+bowden_method = function(b, se) {
+  F = b^2/se^2
+  return(F)
+}
+
+for (x in 1:length(fetal_exposure$SNP)) {
+  F = bowden_method(fetal_exposure$beta.exposure[x],fetal_exposure$se.exposure[x])
+  if (F < 10) {fetal_exposure[-x,]}
+}
+
+```
+
+# Clumping
+```{r}
+#fetal_exposure_clumped = clump_data(fetal_exposure)
+```
+# Now remove SNPs
+```{r}
+#fetal_exposure_clumped_rem = subset(fetal_exposure_clumped,!(SNP %in% removal_snps$rsidt))
+```
+
+
+# Save exposure data
+```{r}
+#write.csv(fetal_exposure, file = 'fetal_exposure.csv')
+```
+
+# Save exposure data
+```{r}
+#write.csv(fetal_exposure_clumped, file = 'fetal_grn_clumped.csv')
+```
+
+# Download outcome data
+```{r}
+fetal_outcome <- extract_outcome_data(
+    snps = fetal_exposure_clumped$SNP,
+    outcomes = 'ieu-a-1183'
+)
+```
+
+# Harmonise data
+```{r}
+fetal_dat <- harmonise_data(
+    exposure_dat = fetal_exposure_clumped, 
+    outcome_dat = fetal_outcome
+)
+```
+
+# MR analysis 
+```{r}
+# First separate the data into those with multiple snps and those without.
+is_duplicate <- duplicated(fetal_dat$exposure) | duplicated(fetal_dat$exposure, fromLast = TRUE)
+# Create a data frame with only duplicate rows
+fetal_duplicate <- fetal_dat[is_duplicate, ]
+# Create a data frame with only non-duplicate rows
+fetal_non_duplicate <- fetal_dat[!is_duplicate, ]
+
+# Run MR on each of these separately. Use Wald test for non-duplicates
+fetal_res_non <- mr(fetal_non_duplicate, method_list = c("mr_wald_ratio"))
+fetal_res_dup <- mr(fetal_duplicate, method_list = c("mr_egger_regression", "mr_ivw"))
+```
+
+# Bonferroni correction
+```{r}
+threshold <- 0.05/length(fetal_res_non$id.exposure)
+sig_fetal_res_non <- subset(fetal_res_non, fetal_res_non$pval < threshold)
+#write.csv(sig_fetal_res_non, file = 'adhd_fetal_sig_res.csv')
+
+threshold2 <- 0.05/length(fetal_res_dup$id.exposure)
+sig_fetal_res_dup <- subset(fetal_res_dup, fetal_res_dup$pval < threshold2)
+```
+
+# Graph results
+```{r}
+options(repr.plot.width = 4, repr.plot.height = 5)
+sig_adult_res_non %>%
+    ggplot(aes(x = exposure, y = b))+
+    geom_pointrange(aes(ymin = (b-1.645*se), ymax = (b+1.645*se)), alpha = 0.5)+
+    geom_hline(yintercept = 0, colour = "red", linetype = "dashed")+    
+    coord_flip()+
+    theme_minimal()+
+    labs(x = "Genes", y = "Effect Size on ADHD")
+ggsave("MR_results_ADHD_adult.pdf", width = 5, height =2, useDingbats=FALSE)
+```

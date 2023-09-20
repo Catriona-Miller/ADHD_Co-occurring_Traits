@@ -1,0 +1,106 @@
+---
+title: "MR_adhd_adult"
+author: "Catriona M"
+date: "4/26/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading required libraries
+```{r}
+library(remotes)
+#install_github("MRCIEU/TwoSampleMR")
+#library(TwoSampleMR)
+library(data.table)
+library(ggplot2)
+library(tidyverse)
+```
+
+# Exposure data
+# From here until after clumping was already done when doing autism analysis so wasn't redone here.
+```{r}
+## adult cortical tissue exposure
+#exposure = read_exposure_data(filename="sig_eqtls_adult_brain_cortex.txt", sep = "\t",snp_col = "snp",beta_col = "beta",se_col = "beta_se",effect_allele_col = "alt",other_allele_col = "ref",phenotype_col = "gene",eaf="maf",pval_col = "eqtl_pval")
+
+##Liver exposure
+exposure = read_exposure_data(filename="significant_eqtls_liver.txt", sep = "\t",snp_col = "snp",beta_col = "beta",se_col = "beta_se",effect_allele_col = "alt",other_allele_col = "ref",phenotype_col = "gene",eaf="maf",pval_col = "eqtl_pval")
+```
+
+
+# Manipulate exposure data
+```{r}
+adult_exposure = subset(exposure, pval.exposure < 0.00001)
+
+```
+
+# Use Bowden method for filtering of F statistic > 10 to reduce false positives
+```{r}
+bowden_method = function(b, se) {
+  F = b^2/se^2
+  return(F)
+}
+
+for (x in 1:length(exposure$SNP)) {
+  F = bowden_method(exposure$beta.exposure[x],exposure$se.exposure[x])
+  if (F < 10) {exposure[-x,]}
+}
+
+```
+
+# Clumping
+```{r}
+exposure_clumped = clump_data(adult_exposure)
+```
+
+# Save exposure data
+```{r}
+write.csv(exposure_clumped_liver, file = 'liver_grn_clumped.csv')
+```
+
+
+# Outcome data
+```{r}
+adult_outcome <- extract_outcome_data(
+    snps = exposure_clumped$SNP,
+    outcomes = 'ieu-a-1183'
+)
+```
+# Harmonise the data (combine and ensure that they are the right way round with effect and outcome alleles)
+```{r}
+adult_dat <- harmonise_data(
+    exposure_dat = exposure_clumped,
+    outcome_dat = adult_outcome
+)
+```
+
+# MR analysis 
+```{r}
+# First separate the data into those with multiple snps and those without.
+is_duplicate <- duplicated(adult_dat$exposure) | duplicated(adult_dat$exposure, fromLast = TRUE)
+# Create a data frame with only duplicate rows
+adult_duplicate <- adult_dat[is_duplicate, ]
+# Create a data frame with only non-duplicate rows
+adult_non_duplicate <- adult_dat[!is_duplicate, ]
+
+
+# Run MR on each of these separately. Use Wald test for non-duplicates
+adult_res_non <- mr(adult_non_duplicate, method_list = c("mr_wald_ratio"))
+adult_res_dup <- mr(adult_duplicate, method_list = c("mr_egger_regression", "mr_ivw"))
+```
+
+# Bonferroni correction
+```{r}
+threshold <- 0.05/length(adult_res_non$id.exposure)
+sig_adult_res_non <- subset(adult_res_non, adult_res_non$pval < threshold)
+
+threshold_dup <- 0.05/length(adult_res_dup$id.exposure)
+sig_adult_res_dup <- subset(adult_res_dup, adult_res_dup$pval < threshold_dup)
+#write.csv(sig_adult_res_non, file = 'adult_sig_res.csv')
+```
+
+
+
+
