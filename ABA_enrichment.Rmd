@@ -1,0 +1,46 @@
+---
+title: "EnrichedGenes"
+author: "Catriona Miller"
+date: "2023-07-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(ABAEnrichment)
+```
+
+```{r}
+fetal_mr = read.csv('fetal_mr_sig_network.txt',header = FALSE)
+fetal_mr_in = data.frame(fetal_mr, is_candidate=1)
+res_devel = aba_enrich(fetal_mr_in, dataset='dev_effect', cutoff_quantiles=c(0.5,0.7,0.9), n_randsets=100, gene_len = TRUE)
+res_fetal_A = aba_enrich(fetal_mr_in, dataset='adult', cutoff_quantiles=c(0.5,0.7,0.9), n_randsets=100, gene_len = TRUE)
+```
+
+```{r}
+adult_mr = read.csv('adult_mr_sig_network.txt',header = FALSE)
+adult_mr_in = data.frame(adult_mr, is_candidate=1)
+res_devel_adult_mr = aba_enrich(adult_mr_in, dataset='5_stages', cutoff_quantiles=c(0.5,0.7,0.9), n_randsets=100, gene_len = TRUE)
+```
+
+```{r}
+fetal = read.csv('fetal_level0_genes.txt',header = FALSE)
+fetal_in = data.frame(fetal, is_candidate=1)
+res_devel_fetal = aba_enrich(fetal_in, dataset='5_stages', cutoff_quantiles=c(0.5,0.7,0.9), n_randsets=100, gene_len = TRUE)
+res_dev_effect_fetal = aba_enrich(fetal_in, dataset='dev_effect', cutoff_quantiles=c(0.5,0.7,0.9), n_randsets=100, gene_len = TRUE)
+res_full_fetal = aba_enrich(fetal_in, dataset='adult', cutoff_quantiles=c(0.5,0.7,0.9), n_randsets=100, gene_len = TRUE)
+
+expr_DFC_dev = get_expression(structure_ids=c('Allen:10173'), gene_ids=res_dev_effect_fetal[[2]][,1], dataset='dev_effect')
+expr_DFC = get_expression(structure_ids=c('Allen:10173'), gene_ids=res_devel_fetal[[2]][,1], dataset='5_stages')
+```
+
+```{r}
+adult = read.csv('adult_level0_genes.txt',header = FALSE)
+adult_in = data.frame(adult, is_candidate=1)
+res_devel_adult = aba_enrich(adult_in, dataset='5_stages', cutoff_quantiles=c(0.5,0.7,0.9), n_randsets=100, gene_len = TRUE)
+res_dev_effect_adult = aba_enrich(adult_in, dataset='dev_effect', cutoff_quantiles=c(0.5,0.7,0.9), n_randsets=100, gene_len = TRUE)
+res_full_adult = aba_enrich(adult_in, dataset='adult', cutoff_quantiles=c(0.5,0.7,0.9), n_randsets=100, gene_len = TRUE)
+```
