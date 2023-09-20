@@ -1,0 +1,138 @@
+---
+title: "ADHD Co-occurring traits R Figures"
+output: html_notebook
+---
+
+```{r}
+require(tidyverse)
+library(readxl)
+library(ggplot2)
+library(hrbrthemes)
+library(viridis)
+library(pheatmap)
+library(gprofiler2)
+library(igraph)
+library(dplyr)
+```
+
+## Bubbleplot
+# Both Fetal and Adult on same graph
+```{r}
+#Changed for different bubbleplots but same base code.
+#Read in data. 
+Both_m3 <- read_excel("BubblePlots/adult_bootstrap_bubbleplot.xlsx")
+
+#Plot
+pdf("figures/ADHD_multimorbidities_adult_only.pdf",width=10, height=12)
+bothm3 <- ggplot(Both_m3, aes(x=level, size=trait_eqtls, y = reorder(trait, order), fill=-log(sim_pval), text=10)) + geom_count(alpha=0.7,shape=21) +
+  scale_size(range=c(.5,8),name="Number of eQTLs") + labs(y="Phenotype") +
+  scale_fill_viridis_c(name="-log(Bootstrap p-value)") +
+  theme(panel.background = element_blank(), panel.border = element_rect(colour="black",fill=NA, size=1)) + 
+  theme_bw()
+bothm3
+dev.off()
+```
+
+
+## Heatmaps (genes vs traits) at all levels
+# currently set for fetal, rename to adult and rerun for adult
+#level 0
+```{r}
+# The upper limit where we keep all gene-trait interactions the same colour. Keep same for all heatmaps
+X = 50
+
+level0_sig_trait_gene <- read.delim('Adult/level0_sig_interactions_bootstrap.txt',header=TRUE)
+
+# only take trait and gene info
+l0_trait_gene.df <- level0_sig_trait_gene
+l0.df <- table(l0_trait_gene.df[c("trait","gene")])
+
+l0_df <- as.data.frame.matrix(l0.df)
+desired_df <- l0_df %>% select_if(~any(. >= 2 ))
+desired_df[desired_df > X] <- X # set those bigger than X to X to try and decrease the colour scale (i.e. now the darkest colour represents X+) 
+
+pheatmap(desired_df,color=hcl.colors(80,"Oslo"),cluster_cols=T,cluster_rows=T,cellheight=9,cellwidth=9,fontsize=8, filename="figures/adult_level0_bootstrap.pdf")
+```
+
+
+#level 1
+```{r}
+level1_sig_trait_gene <- read.delim('fetal/level1_sig_interactions.txt',header=TRUE)
+
+l1_trait_gene.df <- level1_sig_trait_gene
+l1.df <- table(l1_trait_gene.df[c("trait","gene")])
+
+l1_df <- as.data.frame.matrix(l1.df)
+desired_df <- l1_df %>% select_if(~any(. >= 2 ))
+desired_df[desired_df > X] <- X # set those bigger than X to X to try and decrease the colour scale (i.e. now the darkest colour represents X+) 
+
+pheatmap(desired_df,color=hcl.colors(80,"Oslo"),cluster_cols=T,cluster_rows=T,cellheight=20,cellwidth=20,fontsize=8, filename="figures/fetal_level1.pdf")
+```
+
+
+#level 2
+```{r}
+level2_sig_trait_gene <- read.delim('fetal/level2_sig_interactions.txt',header=TRUE)
+
+l2_trait_gene.df <- level2_sig_trait_gene
+l2.df <- table(l2_trait_gene.df[c("trait","gene")])
+
+l2_df <- as.data.frame.matrix(l2.df)
+desired_df <- l2_df %>% select_if(~any(. >= 2 ))
+desired_df[desired_df > X] <- X # set those bigger than X to X to try and decrease the colour scale (i.e. now the darkest colour represents X+) 
+
+pheatmap(desired_df,color=hcl.colors(80,"Oslo"),cluster_cols=T,cluster_rows=T,cellheight=18,cellwidth=18,fontsize=8, filename="figures/fetal_level2.pdf")
+```
+
+
+#level 3
+```{r}
+level3_sig_trait_gene <- read.delim('fetal/level3_sig_interactions.txt',header=TRUE)
+
+l3_trait_gene.df <- level3_sig_trait_gene
+l3.df <- table(l3_trait_gene.df[c("trait","gene")])
+
+l3_df <- as.data.frame.matrix(l3.df)
+desired_df <- l3_df %>% select_if(~any(. >= 2 ))
+desired_df[desired_df > X] <- X # set those bigger than X to X to try and decrease the colour scale (i.e. now the darkest colour represents X+) 
+
+pheatmap(desired_df,color=hcl.colors(80,"Oslo"),cluster_cols=T,cluster_rows=T,cellheight=9,cellwidth=9,fontsize=8, filename="figures/fetal_level3.pdf")
+```
+
+
+#level 4
+```{r}
+level4_sig_trait_gene <- read.delim('fetal/level4_sig_interactions.txt',header=TRUE)
+
+l4_trait_gene.df <- level4_sig_trait_gene
+l4.df <- table(l4_trait_gene.df[c("trait","gene")])
+
+l4_df <- as.data.frame.matrix(l4.df)
+desired_df <- l4_df %>% select_if(~any(. >= 2 ))
+desired_df[desired_df > X] <- X # set those bigger than X to X to try and decrease the colour scale (i.e. now the darkest colour represents X+) 
+
+pheatmap(desired_df,color=hcl.colors(80,"Oslo"),cluster_cols=T,cluster_rows=T,cellheight=10,cellwidth=10,fontsize=8, filename="figures/fetal_level4.pdf")
+```
+
+# Forest plot of MR genes
+```{r}
+library(forestploter)
+causal_genes <- read.csv("MR/ADHD_MR_results.csv")
+causal_genes$Gene <- ifelse(is.na(causal_genes$OR),
+                      causal_genes$Gene,
+                      paste0("   ", causal_genes$Gene))
+causal_genes$`ADHD OR` <- paste(rep(" ", 20), collapse = " ")
+causal_genes$`OR (95% CI)` <- ifelse(is.na(causal_genes$OR), "", sprintf("%.2f (%.2f to %.2f)", causal_genes$OR, causal_genes$OR_low, causal_genes$OR_up))
+causal_genes$`Allelic fold change (AFC)` <- paste(rep(" ", 20), collapse = " ")
+causal_genes$`afc (95% CI)` <- ifelse(is.na(causal_genes$OR), "", sprintf("%.2f (%.2f to %.2f)", causal_genes$afc, causal_genes$afc_low, causal_genes$afc_high))
+forestp <- forest(causal_genes[,c(1, 9, 2, 11)], est = list(causal_genes$OR,causal_genes$afc), lower = list(causal_genes$OR_low, causal_genes$afc_low), upper = list(causal_genes$OR_up, causal_genes$afc_high), ref_line=c(1,0), ci_column=c(2,4), x_lim=list(c(0,2.5), c(-1,1)))
+forestp
+png('MRplot_opt2.png', res = 300, width = 30, height = 8, units = "cm")
+p_wh <- get_wh(forestp)
+pdf('MRplot.pdf',width = p_wh[1], height = p_wh[2])
+forestp
+dev.off()
+```
+
+
+
