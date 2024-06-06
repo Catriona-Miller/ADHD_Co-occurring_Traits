@@ -20,13 +20,12 @@ library(tidyverse)
 ```
 
 # Exposure data
-# From here until after clumping was already done when doing autism analysis so wasn't redone here.
 ```{r}
 ## adult cortical tissue exposure
-#exposure = read_exposure_data(filename="sig_eqtls_adult_brain_cortex.txt", sep = "\t",snp_col = "snp",beta_col = "beta",se_col = "beta_se",effect_allele_col = "alt",other_allele_col = "ref",phenotype_col = "gene",eaf="maf",pval_col = "eqtl_pval")
+exposure = read_exposure_data(filename="sig_eqtls_adult_brain_cortex.txt", sep = "\t",snp_col = "snp",beta_col = "beta",se_col = "beta_se",effect_allele_col = "alt",other_allele_col = "ref",phenotype_col = "gene",eaf="maf",pval_col = "eqtl_pval")
 
-##Liver exposure
-exposure = read_exposure_data(filename="significant_eqtls_liver.txt", sep = "\t",snp_col = "snp",beta_col = "beta",se_col = "beta_se",effect_allele_col = "alt",other_allele_col = "ref",phenotype_col = "gene",eaf="maf",pval_col = "eqtl_pval")
+##Liver exposure - below line reads in liver GRN instead. This can be used instead of the above line, all other code remains same.
+#exposure = read_exposure_data(filename="significant_eqtls_liver.txt", sep = "\t",snp_col = "snp",beta_col = "beta",se_col = "beta_se",effect_allele_col = "alt",other_allele_col = "ref",phenotype_col = "gene",eaf="maf",pval_col = "eqtl_pval")
 ```
 
 
@@ -76,7 +75,6 @@ adult_dat <- harmonise_data(
 )
 ```
 
-# MR analysis 
 ```{r}
 # First separate the data into those with multiple snps and those without.
 is_duplicate <- duplicated(adult_dat$exposure) | duplicated(adult_dat$exposure, fromLast = TRUE)
@@ -84,7 +82,30 @@ is_duplicate <- duplicated(adult_dat$exposure) | duplicated(adult_dat$exposure, 
 adult_duplicate <- adult_dat[is_duplicate, ]
 # Create a data frame with only non-duplicate rows
 adult_non_duplicate <- adult_dat[!is_duplicate, ]
+```
+```{r}
+## Sensitivity analysis
+adult_passed <- mr_heterogeneity(adult_duplicate %>% 
+                                distinct()) %>% 
+                        filter(!Q_pval < 0.05)
 
+adult_failed <- mr_heterogeneity(adult_duplicate %>% 
+                                distinct()) %>% 
+                        filter(Q_pval < 0.05)
+length(unique(adult_failed$exposure)) # 3 failed
+```
+```{r}
+## Pleiotropy analysis
+adult_pleiotropy_res <- mr_pleiotropy_test(adult_duplicate %>% 
+                                distinct())
+passed_pleiotropy_adult <- adult_pleiotropy_res %>% filter(pval > 0.05)
+failed_pleiotropy_adult <- adult_pleiotropy_res %>% filter(pval <= 0.05) #All passed
+```
+```{r}
+# Get those with multiple SNPs that passed sensitivity analyses
+multi_SNPs <- adult_duplicate %>% 
+                        filter(exposure %in% passed_instruments$exposure) %>% 
+                        distinct() 
 
 # Run MR on each of these separately. Use Wald test for non-duplicates
 adult_res_non <- mr(adult_non_duplicate, method_list = c("mr_wald_ratio"))
